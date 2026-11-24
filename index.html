@@ -507,9 +507,14 @@
       function detectCylinderTimingCols(headers) {
         const cyls = [1, 2, 3, 4].map((num) => {
           const patterns = [
+            `timing corr. cyl ${num}`,
+            `timing corr cyl ${num}`,
+            `ignition timing corr. cyl ${num}`,
+            `ignition timing corr cyl ${num}`,
             `timing cor. cyl ${num}`,
             `timing cor cyl ${num}`,
             `timing correction cyl ${num}`,
+            `cyl ${num} timing corr`,
             `cyl ${num} timing cor`,
             `cyl${num} timing`,
             `knock cyl ${num}`
@@ -1511,10 +1516,10 @@
           'Throttle Angle[%]',
           'Boost (Actual)[psi]',
           'Boost (Target)[psi]',
-          'Timing Cor. Cyl 1[deg]',
-          'Timing Cor. Cyl 2[deg]',
-          'Timing Cor. Cyl 3[deg]',
-          'Timing Cor. Cyl 4[deg]',
+          '(RAM) Ignition Timing Corr. Cyl 1[deg]',
+          '(RAM) Ignition Timing Corr. Cyl 2[deg]',
+          '(RAM) Ignition Timing Corr. Cyl 3[deg]',
+          '(RAM) Ignition Timing Corr. Cyl 4[deg]',
           'HPFP Actual[psi]',
           'HPFP Target[psi]',
           'AFR Actual',
