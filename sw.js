@@ -1,4 +1,4 @@
-const CACHE = "bm3-log-analyzer-v1";
+const CACHE = "bm3-log-analyzer-v2";
 const APP_FILES = [
   "./",
   "./index.html",
