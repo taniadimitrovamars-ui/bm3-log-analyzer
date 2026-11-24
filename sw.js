@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bm3-telemetry-v2';
+const CACHE_NAME = 'bm3-telemetry-v3';
 const CORE_ASSETS = [
   './',
   './index.html',
