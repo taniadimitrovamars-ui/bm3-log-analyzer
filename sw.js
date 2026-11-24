@@ -1,66 +1,68 @@
-const CACHE = "bm3-log-analyzer-v3";
-const APP_FILES = [
-  "./",
-  "./index.html",
-  "./manifest.webmanifest",
-  "./icons/icon-192.png",
-  "./icons/icon-512.png"
+const CACHE_NAME = 'bm3-telemetry-v2';
+const CORE_ASSETS = [
+  './',
+  './index.html',
+  './manifest.webmanifest'
 ];
-const CDN_FILES = [
-  "https://cdn.tailwindcss.com",
-  "https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js",
-  "https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js",
-  "https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js",
-  "https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"
-];
-self.addEventListener("install", event => {
-  event.waitUntil((async () => {
-    const cache = await caches.open(CACHE);
-    await cache.addAll(APP_FILES);
-    await Promise.all(CDN_FILES.map(async url => {
-      try {
-        const response = await fetch(url, {mode: "no-cors"});
-        if (response && (response.ok || response.type === "opaque")) {
-          await cache.put(url, response);
-        }
-      } catch (_) {}
-    }));
-    await self.skipWaiting();
-  })());
+
+self.addEventListener('install', (event) => {
+  self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(CORE_ASSETS)).catch(() => {})
+  );
 });
-self.addEventListener("activate", event => {
-  event.waitUntil((async () => {
-    const keys = await caches.keys();
-    await Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key)));
-    await self.clients.claim();
-  })());
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(
+        keys
+          .filter((key) => key !== CACHE_NAME)
+          .map((key) => caches.delete(key))
+      )
+    ).then(() => self.clients.claim())
+  );
 });
-self.addEventListener("fetch", event => {
-  const req = event.request;
-  if (req.method !== "GET") return;
-  const url = new URL(req.url);
-  if (url.origin === self.location.origin) {
-    event.respondWith((async () => {
-      const cached = await caches.match(req);
-      if (cached) return cached;
-      try {
-        const fresh = await fetch(req);
-        if (fresh && fresh.ok) (await caches.open(CACHE)).put(req, fresh.clone());
-        return fresh;
-      } catch (_) {
-        return (await caches.match("./index.html")) || Response.error();
-      }
-    })());
-  } else if (CDN_FILES.includes(req.url)) {
-    event.respondWith((async () => {
-      try {
-        const fresh = await fetch(req);
-        if (fresh && fresh.ok) {
-          (await caches.open(CACHE)).put(req, fresh.clone());
-          return fresh;
-        }
-      } catch (_) {}
-      return (await caches.match(req)) || Response.error();
-    })());
+
+self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') return;
+
+  const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin) {
+    return;
   }
+
+  const isHtmlOrSw =
+    event.request.mode === 'navigate' ||
+    url.pathname.endsWith('/') ||
+    url.pathname.endsWith('/index.html') ||
+    url.pathname.endsWith('/sw.js');
+
+  if (isHtmlOrSw) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)).catch(() => {});
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request).then((cached) => cached || caches.match('./index.html')))
+    );
+    return;
+  }
+
+  event.respondWith(
+    caches.match(event.request).then((cached) => {
+      if (cached) return cached;
+      return fetch(event.request).then((response) => {
+        if (response && response.ok) {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)).catch(() => {});
+        }
+        return response;
+      });
+    })
+  );
 });
