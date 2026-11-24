@@ -448,6 +448,20 @@
         return String(value ?? '').replace(/[&<>\"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' }[ch]));
       }
 
+      function convertIatToCelsius(rawVal, colName) {
+        const val = Number(rawVal);
+        if (!Number.isFinite(val)) return NaN;
+        const header = String(colName || '').toLowerCase();
+
+        const hasExplicitF = /\b(f|fahrenheit)\b/.test(header) || header.includes('[f]') || header.includes('(f)');
+        const hasExplicitC = /\b(c|celsius)\b/.test(header) || header.includes('[c]') || header.includes('(c)');
+
+        if (hasExplicitF || (!hasExplicitC && val > 75)) {
+          return (val - 32) / 1.8;
+        }
+        return val;
+      }
+
       let toastTimer = null;
       function notify(message, type = 'info') {
         const banner = document.getElementById('toast');
@@ -560,9 +574,11 @@
         return 'unknown';
       }
 
-      function finiteValues(rows, col) {
+      function finiteValues(rows, col, transformFn = null) {
         if (!col) return [];
-        return rows.map(r => Number(r[col])).filter(v => Number.isFinite(v));
+        return rows
+          .map(r => transformFn ? transformFn(r[col], col) : Number(r[col]))
+          .filter(v => Number.isFinite(v));
       }
 
       function safeMin(values) { return values.length ? values.reduce((a, b) => Math.min(a, b), Infinity) : null; }
@@ -665,6 +681,7 @@
         const { time, rpm, boostAct, boostTgt, iat, hpfpAct, hpfpTgt, throttle, accel, allTimingCols } = cols;
         const loadCol = accel || throttle;
         const value = (row, col) => col ? Number(row[col]) : NaN;
+        const iatCValue = (row) => iat ? convertIatToCelsius(row[iat], iat) : NaN;
         const getTimeStr = idx => {
           const t = value(rows[idx], time);
           return Number.isFinite(t) ? `${t.toFixed(2)}s` : `#${idx + 1}`;
@@ -692,7 +709,7 @@
           const flagged = rows.map(row => allTimingCols.some(col => { const v = value(row, col); return Number.isFinite(v) && v <= -3; }));
           const repeated = countRun(flagged, 3);
           if (worst.idx >= 0 && worst.v <= -3) {
-            const iatAt = value(rows[worst.idx], iat);
+            const iatAt = iatCValue(rows[worst.idx]);
             const hints = [
               'Корекцията е сигнал за наблюдение, а не самостоятелно доказателство за детонация или дефект.',
               'Провери същия момент по цилиндър, обороти, товар, IAT, lambda и горивно налягане.'
@@ -760,7 +777,7 @@
         }
 
         if (iat) {
-          const vals = rows.map((r, idx) => ({ v: value(r, iat), idx })).filter(x => Number.isFinite(x.v));
+          const vals = rows.map((r, idx) => ({ v: iatCValue(r), idx })).filter(x => Number.isFinite(x.v));
           if (vals.length) {
             const peak = vals.reduce((a, b) => b.v > a.v ? b : a);
             if (peak.v >= 55) {
@@ -1001,7 +1018,7 @@
         }
 
         if (iat) {
-          const vals = rows.map((r) => Number(r[iat])).filter((v) => !isNaN(v) && isFinite(v));
+          const vals = finiteValues(rows, iat, convertIatToCelsius);
           document.getElementById('kpiIat').textContent = vals.length ? `${safeMax(vals).toFixed(1)}°C` : '—';
         } else {
           document.getElementById('kpiIat').textContent = '—';
@@ -1204,7 +1221,7 @@
             fuelDatasets.push({
               label: 'IAT (°C)',
               yAxisID: 'y2',
-              data: sampledRows.map((r) => Number(r[iat])),
+              data: sampledRows.map((r) => convertIatToCelsius(r[iat], iat)),
               borderColor: '#fb7185',
               borderWidth: 1.8,
               tension: 0.15,
@@ -1265,7 +1282,7 @@
         const maxRpm = safeMax(finiteValues(rows, rpm));
         const maxBoostAct = safeMax(finiteValues(rows, boostAct));
         const maxBoostTgt = safeMax(finiteValues(rows, boostTgt));
-        const maxIat = safeMax(finiteValues(rows, iat));
+        const maxIat = safeMax(finiteValues(rows, iat, convertIatToCelsius));
         const minHpfp = safeMin(finiteValues(rows, hpfpAct).filter(v => v > 0));
         const afrVals = finiteValues(rows, afr);
         const afrHeader = String(afr || '').toLowerCase();
